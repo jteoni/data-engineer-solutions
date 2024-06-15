@@ -1,32 +1,27 @@
-from extract import read_taxi_data
-from transform import transform_data
-from load import write_output
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+from pyspark.sql.window import Window
+
+def calculate_most_traveled_vendor(taxi_data):
+    window_spec = Window.partitionBy("year", "vendor_id").orderBy(F.desc("total_distance"))
+
+    taxi_data = taxi_data.withColumn("total_distance", F.sum("trip_distance").over(window_spec))
+
+    return taxi_data
 
 def main():
-    # List of file paths (CSV and JSON)
-    file_paths = [
-        "data/data-payment_lookup.csv",
-        "data/tdata-vendor_lookup.csv",
-        "data/data-nyctaxi-trips-2009.json",
-        "data/data-nyctaxi-trips-2010.json",
-        "data/data-nyctaxi-trips-2011.json",
-        "data/data-nyctaxi-trips-2012.json"
-    ]
-    
-    # Output file paths
-    output_path_vendor = "output/most_traveled_vendor.csv"
-    output_path_week = "output/busiest_week.csv"
-    
-    # Read data
-    taxi_data = read_taxi_data(file_paths)
-    
-    # Transform data
-    most_traveled_vendor, busiest_week = transform_data(taxi_data)
-    
-    # Write output
-    write_output(most_traveled_vendor, output_path_vendor)
-    write_output(busiest_week, output_path_week)
+    spark = SparkSession.builder.appName("NYC Taxi ETL").getOrCreate()
+
+    # Carregar dados de exemplo (substitua pelo seu carregamento real de dados)
+    taxi_data = spark.read.json("data/data-nyctaxi-trips-*.json.gz")
+
+    # Calcular a distância total por ano e por fornecedor
+    taxi_data = calculate_most_traveled_vendor(taxi_data)
+
+    # Mostrar o resultado ou salvar conforme necessário
+    taxi_data.show()
+
+    spark.stop()
 
 if __name__ == "__main__":
     main()
-

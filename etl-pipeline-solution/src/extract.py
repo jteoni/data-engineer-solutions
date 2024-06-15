@@ -1,55 +1,25 @@
-from pyspark.sql import SparkSession
-from functools import reduce
+from pyspark.sql import DataFrame, SparkSession
 
-def read_taxi_data(file_paths):
+def read_taxi_data(spark: SparkSession, json_files: list) -> DataFrame:
     """
-    Read taxi data from multiple CSV and JSON files into a single PySpark DataFrame.
-    Args:
-    - file_paths (list): List of file paths to CSV and JSON files.
+    Reads taxi data from JSON files.
+
+    Parameters:
+    - spark: SparkSession object
+    - json_files: List of JSON file paths
+
     Returns:
-    - combined_df (DataFrame): Combined PySpark DataFrame containing all data.
+    - DataFrame containing the concatenated data from all JSON files
     """
-    spark = SparkSession.builder.appName("TaxiETL").getOrCreate()
-    
-    # Function to read JSON and select required fields
-    def read_json_and_select(file_path):
-        """
-        Reads JSON file and selects only required fields for ETL.
-        Args:
-        - file_path (str): Path to JSON file.
-        Returns:
-        - selected_df (DataFrame): DataFrame with selected fields.
-        """
-        # Read JSON file into DataFrame
+    # Assuming json_files is a list of paths to JSON files
+    df_list = []
+    for file_path in json_files:
         df = spark.read.json(file_path)
-        
-        # Select only the necessary fields for ETL
-        selected_df = df.select(
-            "vendor_id",
-            "pickup_datetime",
-            "dropoff_datetime",
-            "trip_distance",
-            "fare_amount"
-        )
-        
-        return selected_df
+        df_list.append(df)
     
-    # List to store all DataFrames
-    dfs = []
-    
-    # Loop through each file path and read the file into a DataFrame
-    for file_path in file_paths:
-        if file_path.endswith('.csv'):
-            # Read CSV files
-            dfs.append(spark.read.csv(file_path, header=True, inferSchema=True))
-        elif file_path.endswith('.json'):
-            # Read JSON files and select required fields
-            dfs.append(read_json_and_select(file_path))
-        else:
-            # Raise error for unsupported file format
-            raise ValueError(f"Unsupported file format for file: {file_path}")
-    
-    # Combine all DataFrames into a single DataFrame using union
-    combined_df = reduce(lambda df1, df2: df1.union(df2), dfs)
-    
-    return combined_df
+    # Union all DataFrames
+    taxi_data = df_list[0] if len(df_list) > 0 else None
+    for i in range(1, len(df_list)):
+        taxi_data = taxi_data.union(df_list[i])
+
+    return taxi_data
