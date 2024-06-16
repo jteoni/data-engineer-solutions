@@ -1,12 +1,8 @@
-def write_output(df, output_path):
-    """
-    Write PySpark DataFrame to CSV.
+from pyspark.sql import DataFrame
 
-    Args:
-    - df (DataFrame): PySpark DataFrame to write.
-    - output_path (str): Path to write the CSV file.
+class DataLoader:
+    def __init__(self):
+        pass
 
-    Returns:
-    - None
-    """
-    df.coalesce(1).write.csv(output_path, mode="overwrite", header=True)
+    def save_data(self, df: DataFrame, output_path: str):
+        df.coalesce(1).write.csv(output_path, header=True, mode='overwrite')

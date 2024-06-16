@@ -1,25 +1,37 @@
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import SparkSession
+import gzip
+import json
+import os
 
-def read_taxi_data(spark: SparkSession, json_files: list) -> DataFrame:
-    """
-    Reads taxi data from JSON files.
+class DataExtractor:
+    def __init__(self, spark: SparkSession):
+        self.spark = spark
 
-    Parameters:
-    - spark: SparkSession object
-    - json_files: List of JSON file paths
+    def read_json_files(self, folder_path: str):
+        folder_path = os.path.abspath(folder_path)
+        json_files = [f for f in os.listdir(folder_path) if f.endswith('.json')]
+        df_list = []
+        for json_file in json_files:
+            with open(os.path.join(folder_path, json_file), 'r') as f:
+                lines = f.readlines()
+                json_data = [json.loads(line) for line in lines]
+                with gzip.open(os.path.join(folder_path, f"{json_file}.gz"), 'wt', encoding='utf-8') as gz_file:
+                    for record in json_data:
+                        gz_file.write(json.dumps(record) + '\n')
+                temp_df = self.spark.read.json(os.path.join(folder_path, f"{json_file}.gz"))
+                df_list.append(temp_df)
+        return df_list
 
-    Returns:
-    - DataFrame containing the concatenated data from all JSON files
-    """
-    # Assuming json_files is a list of paths to JSON files
-    df_list = []
-    for file_path in json_files:
-        df = spark.read.json(file_path)
-        df_list.append(df)
-    
-    # Union all DataFrames
-    taxi_data = df_list[0] if len(df_list) > 0 else None
-    for i in range(1, len(df_list)):
-        taxi_data = taxi_data.union(df_list[i])
+    def read_csv_file(self, file_path: str):
+        file_path = os.path.abspath(file_path)
+        return self.spark.read.csv(file_path, header=True, inferSchema=True)
 
-    return taxi_data
+    def union_dataframes(self, df_list: list):
+        return df_list[0].unionByName(*df_list[1:])
+
+    def read_data(self, json_folder_path: str, payment_lookup_path: str, vendor_lookup_path: str):
+        json_dfs = self.read_json_files(json_folder_path)
+        taxi_data_df = self.union_dataframes(json_dfs)
+        payment_lookup_df = self.read_csv_file(payment_lookup_path)
+        vendor_lookup_df = self.read_csv_file(vendor_lookup_path)
+        return taxi_data_df, payment_lookup_df, vendor_lookup_df
